@@ -77,11 +77,40 @@ trace!("entity transform: {:?}", transform);
 
 
 
+// if we have a Vec of Entities, and we want to iterate on only the Health Component, can do this
+#[derive(Component)]
+struct Health(pub f32);
+
+#[derive(Resource)]
+struct Selection {
+    enemies: Vec<Entity>
+}
+
+const ATTACK_DAMAGE: f32 = 10.;
+
+fn attack_selected_enemies(
+    mut query: Query<&mut Health>,
+    selected: Res<Selection>
+) {
+    let mut iter = query.iter_many_mut(&selected.enemies);
+    while let Some(mut health) = iter.fetch_next() {
+        health.0 -= ATTACK_DAMAGE;
+    }
+}
 
 
 
 
 
+// this function iterates over all entities that have a Sprite Component and a Transform Component
+fn sprite_do_all(
+        mut sprite_query: Query<(&Sprite, &mut Transform)>,
+        keyboard_input: Res<Input<KeyCode>>,
+    ){
 
+    for (mut sp, mut tr) in sprite_query.iter_mut() {
+
+    }
+}
 
 
