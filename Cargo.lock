@@ -834,7 +834,7 @@ dependencies = [
  "image",
  "js-sys",
  "ktx2",
- "naga",
+ "naga 0.13.0",
  "naga_oil",
  "ruzstd",
  "serde",
@@ -1573,6 +1573,7 @@ name = "evolution-sim-bevy"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "naga 0.14.2",
  "noise",
  "rand 0.8.5",
 ]
@@ -2304,6 +2305,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "naga"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae585df4b6514cf8842ac0f1ab4992edc975892704835b549cf818dc0191249e"
+dependencies = [
+ "bit-set",
+ "bitflags 2.4.1",
+ "indexmap 2.1.0",
+ "log",
+ "num-traits",
+ "rustc-hash",
+ "thiserror",
+]
+
+[[package]]
 name = "naga_oil"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2313,7 +2329,7 @@ dependencies = [
  "codespan-reporting",
  "data-encoding",
  "indexmap 1.9.3",
- "naga",
+ "naga 0.13.0",
  "once_cell",
  "regex",
  "regex-syntax 0.7.5",
@@ -3535,7 +3551,7 @@ dependencies = [
  "cfg-if",
  "js-sys",
  "log",
- "naga",
+ "naga 0.13.0",
  "parking_lot",
  "profiling",
  "raw-window-handle",
@@ -3560,7 +3576,7 @@ dependencies = [
  "bitflags 2.4.1",
  "codespan-reporting",
  "log",
- "naga",
+ "naga 0.13.0",
  "parking_lot",
  "profiling",
  "raw-window-handle",
@@ -3597,7 +3613,7 @@ dependencies = [
  "libloading 0.8.1",
  "log",
  "metal",
- "naga",
+ "naga 0.13.0",
  "objc",
  "parking_lot",
  "profiling",
