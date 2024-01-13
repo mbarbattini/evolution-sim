@@ -3,6 +3,8 @@ use rand::Rng;
 
 use crate::{SCREEN_WIDTH, SCREEN_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
 
+const NUMBER_SOURCES: u32 = 4;
+
 
 #[derive(Component)]
 pub struct WaterSource {
@@ -14,7 +16,6 @@ pub struct WaterSource {
 
 
 // TODO make the water source radius proportional to the sprite size in pixels
-
 impl WaterSource {
     pub fn new(position: Vec3) -> Self {
         Self {
@@ -23,9 +24,7 @@ impl WaterSource {
             value: 1000,
             radius: 100.,
         }
-
     }
-
 }
 
 
@@ -35,18 +34,17 @@ pub fn spawn_water_sources(
 ){
     let mut rng = rand::thread_rng();
 
-    let water_source_handle: Handle<Image> = asset_server.load("textures/water_source.png");
+    let water_source_handle: Handle<Image> = asset_server.load("textures/simple_water_source.png");
 
 
-    let n_water_sources = 8;
-    for i in 0..n_water_sources {
+    for _ in 0..NUMBER_SOURCES {
 
-        let position = Vec3::new(rng.gen_range(-MAP_WIDTH/2.0..MAP_HEIGHT/2.), rng.gen_range(-MAP_WIDTH/2.0..MAP_HEIGHT/2.), -1.0);
+        let position = Vec3::new(rng.gen_range(-MAP_WIDTH/2.0..MAP_WIDTH/2.), rng.gen_range(-MAP_HEIGHT/2.0..MAP_HEIGHT/2.), -5.0);
         commands.spawn((
             SpriteBundle {
                 texture: water_source_handle.clone(),
                 transform: Transform {
-                     translation: Vec3::new(position.x, position.y, position.z),
+                     translation: position,
                      rotation: Quat::default(),
                      scale: Vec3::splat(3.)},
                 ..default()

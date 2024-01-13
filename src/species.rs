@@ -1,11 +1,17 @@
+use bevy::asset::io::AssetWriter;
 use rand::Rng;
 use bevy::prelude::*;
 use noise::{NoiseFn, Perlin, Seedable};
-use crate::{SCREEN_WIDTH, SCREEN_HEIGHT};
+use crate::{MAP_WIDTH, MAP_HEIGHT};
+use crate::{water_desire::WaterDesire};
 use bevy::math::f32::{Vec2, Vec3};
 
 use crate::water_source::*;
+use crate::health::*;
+use crate::homebase::*;
 
+
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum SpeciesRace {
     Red,
     Blue,
@@ -14,10 +20,15 @@ pub enum SpeciesRace {
 }
 
 
+const SPAWN_SPREAD: f64 = 200.;
+pub const MAX_VELOCITY_HEALTHY: f32 = 10.;
+const MAX_ACCELERATION: f32 = 0.5;
+const WANDER_STRENGTH: f32 = 2.;
+const DESIRED_STRENGTH: f32 = 3.;
+
+
 #[derive(Component)]
 pub struct Species {
-    pub id: i32,
-    pub name: String,
     pub aggressiveness: f32,
     pub engineering: f32,
     pub tribalism: f32,
@@ -26,32 +37,34 @@ pub struct Species {
     pub need_to_reproduce: bool,
     pub race: SpeciesRace,
     pub target_pos: Vec3,
-    pub water_desire: f32,
+    pub homebase: Vec3,
+
     pub n_neighbors: u32,
     pub reproduction_factor: f32,
     pub perception_radius: f32,
     pub acceleration: Vec3,
     pub velocity: Vec3,
     pub position: Vec3,
+    pub max_velocity: f32,
 }
 
+
 impl Species {
-    pub fn new(position: Vec3) -> Self {
+    pub fn new(position: Vec3, race: SpeciesRace, homebase: Vec3) -> Self {
         let mut rng = rand::thread_rng();
         let x_vel = rng.gen_range(-1.0..1.0);
         let y_vel = rng.gen_range(-1.0..1.0);
         Self {
-            id: 1,
-            name: String::from("Red"),
-            race: SpeciesRace::Red,
+            race,
             reproduction_factor: 0.0,
             acceleration: Vec3::ZERO,
             velocity: Vec3::new(x_vel, y_vel, 0.0),
-            target_pos: Vec3::ZERO,
+            max_velocity: MAX_VELOCITY_HEALTHY,
+            target_pos: homebase,
             position,
             perception_radius: 25.0,
             n_neighbors: 0,
-            water_desire: 1.0,
+            homebase,
 
             aggressiveness: 1.0,
             engineering: 1.0,
@@ -68,17 +81,16 @@ impl Species {
 impl Default for Species {
     fn default() -> Self {
         Self {
-            id: 1,
-            name: String::from("Red"),
             race: SpeciesRace::Red,
             reproduction_factor: 0.0,
             acceleration: Vec3::ZERO,
             velocity: Vec3::new(0., 0., 0.),
             position: Vec3::ZERO,
+            max_velocity: MAX_VELOCITY_HEALTHY,
             target_pos: Vec3::ZERO,
             perception_radius: 25.0,
             n_neighbors: 0,
-            water_desire: 1.0,
+            homebase: Vec3::ZERO,
             
             aggressiveness: 1.0,
             engineering: 1.0,
@@ -91,19 +103,18 @@ impl Default for Species {
 
 }
 
-//TODO Circular radius instead of rectangular?
 pub fn initial_species_group_spawn(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut home_query: Query<&mut Homebase>,
 ){
     /* Generate a cluster of sprites as some center coordinate with random offsets from the center
      * with Perlin noise. 
      */
     let blue_species_handle: Handle<Image> = asset_server.load("textures/species/blue_species.png");
     let red_species_handle: Handle<Image>  = asset_server.load("textures/species/red_species.png");
-
-
-    let number_species_types: i32 = 2;
+    let yellow_species_handle: Handle<Image> = asset_server.load("textures/species/yellow_species.png");
+    let green_species_handle: Handle<Image> = asset_server.load("textures/species/green_species.png");
 
     let mut rng = rand::thread_rng();
 
@@ -120,15 +131,13 @@ pub fn initial_species_group_spawn(
         }
     }
 
-    for species_i in 0..number_species_types {
-        info!("Spawned species group");
+    for home in home_query.iter_mut() {
+
+        let race = home.species_race;
+
         let number_sprites = rng.gen_range(30..50);
-        let x_center = rng.gen_range(-SCREEN_WIDTH/2.0..SCREEN_WIDTH/2.0);
-        let y_center = rng.gen_range(-SCREEN_HEIGHT/2.0..SCREEN_HEIGHT/2.0);
         // generate the number of sprites with offsets chosen randomly from the Perlin noise map
         for _ in 0..number_sprites {
-            
-            let distance_scale: f64 = 1000.;
             
             // choose a random point for the x offset
             let xx_i: u32 = rng.gen_range(0..perlin_x);
@@ -137,20 +146,21 @@ pub fn initial_species_group_spawn(
             let yx_i: u32 = rng.gen_range(0..perlin_x);
             let yy_i: u32 = rng.gen_range(0..perlin_y);
 
-            let x_offset = distance_scale * noise_values[(xx_i * perlin_x + xy_i) as usize];
-            let y_offset = distance_scale * noise_values[(yx_i * perlin_x + yy_i) as usize];
+            let x_offset = SPAWN_SPREAD * noise_values[(xx_i * perlin_x + xy_i) as usize];
+            let y_offset = SPAWN_SPREAD * noise_values[(yx_i * perlin_x + yy_i) as usize];
 
-            let x_coord: f32 = x_center + x_offset as f32;
-            let y_coord: f32 = y_center + y_offset as f32;
+            let x_coord: f32 = home.position.x + x_offset as f32;
+            let y_coord: f32 = home.position.y + y_offset as f32;
             
-            // TODO match the species enum instead of ints
             let mut species_image: Handle<Image> = blue_species_handle.clone();
-            match species_i {
-                0 => species_image = blue_species_handle.clone(),
-                1 => species_image = red_species_handle.clone(),
-                _ => info!("Species index out of range for initial spawn.")
+            match race {
+                SpeciesRace::Blue => {species_image = blue_species_handle.clone();},
+                SpeciesRace::Red => {species_image = red_species_handle.clone();},
+                SpeciesRace::Yellow => {species_image = yellow_species_handle.clone();},
+                SpeciesRace::Green => {species_image = green_species_handle.clone();},
             };
-
+            
+            // SPAWN ALL SPECIES COMPONENTS
             commands.spawn((
                 SpriteBundle {
                     texture: species_image,
@@ -158,149 +168,79 @@ pub fn initial_species_group_spawn(
                          translation: Vec3::new(x_coord, y_coord, 0.),
                          rotation: Quat::default(),
                          scale: Vec3::splat(2.),
-
                     },
                     ..default()},
-                Species::new(Vec3::new(x_coord, y_coord, 0.))));
+                Species::new(Vec3::new(x_coord, y_coord, 0.), race, home.position),
+                WaterDesire::default(),
+                Health::default(),
+            ));
         }
     }
 
 }
 
+//pub fn update_species_velocity_only(
+    //mut query: Query<(Entity, &mut Transform, &mut Species)>,
+    //time: Res<Time>,
+//){
+    //const MAX_VELOCITY: f32 = 200.0;
+    //const WANDER_RANGE: f32 = 0.707;
+    //const WANDER_STRENGTH: f32 = 1500.;
+    //const DESIRED_STRENGTH: f32 = 1.;
 
-pub fn update_species(
+    //let mut rng = rand::thread_rng();
+    //for (entity, mut transform, mut spec) in query.iter_mut() {
+        //let desired_direction = (spec.target_pos - spec.position).normalize();
+
+        //let wander_x = rng.gen_range(desired_direction.x - WANDER_RANGE..desired_direction.x + WANDER_RANGE);
+        //let wander_y = rng.gen_range(desired_direction.y - WANDER_RANGE..desired_direction.y + WANDER_RANGE);
+        //let wander_direction = Vec3::new(wander_x, wander_y, 0.0).normalize();
+        ////info!("desire: {}, wander: {}", desired_direction * DESIRED_STRENGTH, wander_direction * WANDER_STRENGTH );
+        //let new_vel = (desired_direction + wander_direction * WANDER_STRENGTH).clamp_length_max(MAX_VELOCITY);
+        //info!("{}", new_vel);
+        //spec.position += new_vel * time.delta_seconds();
+        //transform.translation = spec.position;
+    //}
+
+//}
+
+// TODO make wandering smoother
+pub fn update_species_with_acceleration(
     mut query: Query<(Entity, &mut Transform, &mut Species)>,
     time: Res<Time>,
 ){
-    const MAXIMUM_ACCELERATION: f32 = 0.1;
 
 
     let mut rng = rand::thread_rng();
     for (entity, mut transform, mut spec) in query.iter_mut() {
 
-        // update physics
-        let mut new_acceleration = Vec3::ZERO;
-        let mut new_velocity = Vec3::splat(0.1);
-        
-        // random acceleration in some direction
-        //if rng.gen_range(0.0..1.0) < 0.1 {
-            //let factor = 0.1;
-            //new_acceleration = Vec3::new(rng.gen_range(-factor..factor), rng.gen_range(-factor..factor), 0.0) * time.delta_seconds();
-        //}
+        let new_velocity: Vec3;
 
-        // constant negative y acceleration
-        //new_acceleration = Vec3::new(0., -0.1, 0.) * time.delta_seconds();
-        
-        // TODO do we need the line below if other functions are adding acceleration?
-        //spec.acceleration += new_acceleration;
-        new_acceleration = spec.acceleration;
+        // some random wander vector
+        let wander_x = rng.gen_range(-1.0..1.0);
+        let wander_y = rng.gen_range(-1.0..1.0);
 
-        // give the species some maximum acceleration
-        // don't need to update the species.acceleration because it gets reset in next update
-        if new_acceleration.length() > MAXIMUM_ACCELERATION {
-            new_acceleration = new_acceleration.normalize() * MAXIMUM_ACCELERATION;
-            info!("Raw Acc: {}", new_acceleration);
-        }
-        spec.velocity += new_acceleration;
+        let desired_direction = (spec.target_pos - spec.position).normalize();
+        let wander_direction = Vec3::new(wander_x, wander_y, 0.0).normalize();
+
+        let desired_velocity = desired_direction * DESIRED_STRENGTH;
+        let wander_velocity = wander_direction * WANDER_STRENGTH;
+
+        let desired_steering_force = desired_velocity - spec.velocity;
+        let wander_force = wander_velocity - spec.velocity;
+
+        let new_acceleration = desired_steering_force + wander_force; 
+
+        let current_max_vel: f32 = spec.max_velocity;
+        spec.velocity += (new_acceleration * time.delta_seconds()).clamp_length_max(current_max_vel);
         new_velocity = spec.velocity;
-    
+            
         spec.position += new_velocity;
 
-        // update sprite transform
         transform.translation = spec.position;
 
-        // reset data
-        //spec.acceleration = Vec3::ZERO;
-        spec.n_neighbors = 0;
-
-         if entity.index() == 7 {
-             info!("{}", spec.velocity);
-         }
-    }
-}
-
-
-
-pub fn go_to_water_source(
-    mut commands: Commands,
-    mut set: ParamSet<(
-        Query<(&mut Transform, &mut WaterSource)>,
-        Query<(&mut Transform, &mut Species)>,
-    )>,
-    time: Res<Time>
-) {
-    let mut water_locations: Vec<Vec3> = vec![];
-    let mut water_radii: Vec<f32> = vec![];
-
-    for (mut water_transform, mut water_source) in set.p0().iter_mut() {
-        water_locations.push(water_transform.translation);
-        water_radii.push(water_source.radius);
-    }
-
-    for (mut species_transform, mut spec) in set.p1().iter_mut() {
-        for (i, water_pos) in water_locations.iter().enumerate() {
-
-            let distance = *water_pos - species_transform.translation;
-            if distance.length() - water_radii[i] < spec.perception_radius {
-                // add a force to steer towards this water source
-                // make the magnitude proprotional to the species desire for water
-                let steering = distance.normalize() * spec.water_desire * time.delta_seconds();
-                spec.acceleration += steering;
-            }
+        if entity.index() == 14 {
+             //info!("{}", spec.water_amount);
         }
     }
-
-
 }
-
-
-
-
-//pub fn species_movement(
-    //mut commands: Commands,
-    //mut water_query: Query<(Entity, &mut Transform, &mut WaterSource)>,
-    //mut species_query: Query<(Entity, &mut Transform, &mut Species)>,
-
-    //time: Res<Time>,
-//) {
-
-    //let mut rng = rand::thread_rng();
-
-    //for (entity, mut transform, mut water_source) in water_query.iter_mut() {
-
-
-    //}
-
-
-
-     //////iterate through all distinct pair of species 
-     ////let mut pair_combinations = query.iter_combinations_mut::<2>();
-     ////while let Some([spec1, spec2]) = pair_combinations.fetch_next() {
-         ////let entity1 = spec1.0;
-         ////let entity2 = spec2.0;
-         ////let translation1 = spec1.1.translation;
-         ////let translation2 = spec2.1.translation;
-         ////let species1 = spec1.2;
-         ////let species2 = spec2.2;
-     ////}
-
-     ////iterate through each individual species
-     //for (entity, mut transform, mut spec) in query.iter_mut() {
-
-         //////GOAL POSITION
-         ////let goal = Vec3::new(220.0, 200.0, 0.0);
-         ////goal_velocity = goal - transform.translation;
-         ////desired_velocity += goal_velocity;
-
-    
-
-
-         //if entity.index() == 7 {
-             //info!("{}", new_acceleration);
-         //}
-    //}
-//}
-
-
-
-
