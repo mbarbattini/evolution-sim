@@ -55,14 +55,14 @@ pub fn create_homebases(
         let homebase_y = rng.gen_range(min_y..max_y);
         let homebase_pos: Vec3 = Vec3::new(homebase_x, homebase_y, -10.);
 
-        let texture_handle: Handle<Image> = asset_server.load("textures/homebase.png");
+        let mut texture_handle: Handle<Image> = asset_server.load("textures/Homebases/blue_homebase.png");
 
         let mut race: SpeciesRace = SpeciesRace::Red;
         match i {
-            1 => race = SpeciesRace::Blue,
-            2 => race = SpeciesRace::Red,
-            3 => race = SpeciesRace::Yellow,
-            4 =>  race = SpeciesRace::Green,
+            1 => {race = SpeciesRace::Blue; texture_handle = asset_server.load("textures/Homebases/blue_homebase.png")}
+            2 => {race = SpeciesRace::Red; texture_handle = asset_server.load("textures/Homebases/red_homebase.png")}
+            3 => {race = SpeciesRace::Yellow; texture_handle = asset_server.load("textures/Homebases/yellow_homebase.png")}
+            4 => {race = SpeciesRace::Green; texture_handle = asset_server.load("textures/Homebases/green_homebase.png")},
             _ => continue,
         };
 
@@ -72,7 +72,7 @@ pub fn create_homebases(
                 transform: Transform {
                      translation: homebase_pos,
                      rotation: Quat::default(),
-                     scale: Vec3::splat(1.),
+                     scale: Vec3::splat(2.),
                 },
                 ..default()
             },

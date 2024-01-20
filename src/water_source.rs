@@ -1,16 +1,18 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::{SCREEN_WIDTH, SCREEN_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
+use crate::{MAP_WIDTH, MAP_HEIGHT};
 
 const NUMBER_SOURCES: u32 = 4;
+const RADIUS: f32 = 20.;
+const CAPACITY: f32 = 10.;
 
 
 #[derive(Component)]
 pub struct WaterSource {
     pub position: Vec3,
-    pub capacity: i32,
-    pub value: i32,
+    pub capacity: f32,
+    pub value: f32,
     pub radius: f32,
 }
 
@@ -20,9 +22,9 @@ impl WaterSource {
     pub fn new(position: Vec3) -> Self {
         Self {
             position,
-            capacity: 1000,
-            value: 1000,
-            radius: 100.,
+            capacity: CAPACITY,
+            value: CAPACITY,
+            radius: RADIUS,
         }
     }
 }

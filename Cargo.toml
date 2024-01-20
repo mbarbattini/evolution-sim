@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 bevy = "0.12.1"
 naga = "0.14.2"
+ndarray = "0.15.6"
 noise = "0.8.2"
 rand = "0.8.5"
+bevy_egui = "0.24"
 

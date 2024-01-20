@@ -1,11 +1,15 @@
 use bevy::prelude::*;
 use crate::WaterDesire;
 use crate::Species;
-use crate::food_desire::*;
+use crate::food_desire;
+use crate::food_desire::FoodDesire;
 
+//TODO should health be float or int? If int, need to check on multiples of seconds
+// If float, can damage every frame and multiply by time.delta_seconds()
 
 const HEALTH_SPAWN: f32 = 10.;
-const LOW_WATER_DAMAGE_RATE: f32 = 1.0;
+const LOW_WATER_DAMAGE_RATE: f32 = 0.1;
+const LOW_HUNGER_DAMAGE_RATE: f32 = 0.1;
 
 
 #[derive(Component)]
@@ -55,16 +59,16 @@ pub fn kill_zero_health(
 // separate?
 // Different damage rates for each damage type?
 pub fn damage_low_stats(
-    mut query: Query<(&mut Species, &mut Health, &mut WaterDesire)>,
+    mut query: Query<(&mut Species, &mut Health, &mut WaterDesire, &mut FoodDesire)>,
     time: Res<Time>,
 ) {
-    for (spec, mut health, water_desire) in query.iter_mut() {
+    for (spec, mut health, water_desire, food_desire) in query.iter_mut() {
         
-        if water_desire.amount < 0.0 {
+        if water_desire.curr_val < 0.0 {
             health.val -= LOW_WATER_DAMAGE_RATE * time.delta_seconds();
         }
-        // if food_desire.amount < 0.0 {
-        //     health.val -= DAMAGE_RATE * time.delta_seconds();
-        // }
+        if food_desire.curr_val < 0.0 {
+            health.val -= LOW_HUNGER_DAMAGE_RATE * time.delta_seconds();
+        }
     }
 }

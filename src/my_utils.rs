@@ -1,4 +1,22 @@
-use crate::{species::*, water_desire::WaterDesire, health::Health};
+use bevy::{prelude::*};
+use crate::SCREEN_WIDTH;
+use crate::{species::*, water_desire::WaterDesire, health::Health, food_desire::*};
+use bevy::input::mouse::MouseWheel;
+use bevy::window::PrimaryWindow;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
+
+
+const ZOOM_SPEED: f32 = 0.1;
+const MIN_ZOOM: f32 = 0.01;
+const MAX_ZOOM: f32 = 5.0;
+
+
+pub fn ui_example_system(mut contexts: EguiContexts) {
+    egui::Window::new("Hello").show(contexts.ctx_mut(), |ui| {
+        ui.label("world");
+    });
+}
+
 
 
 pub fn despawn_all_enemies(
@@ -12,7 +30,6 @@ pub fn despawn_all_enemies(
         }
     }
 }
-
 
 
 // Moves the camera with WSAD keyboard input
@@ -52,7 +69,6 @@ pub fn camera_movement(
     } else if movement_left {
         camera_transform.0.translation.x -= movement_speed;
     }
-
 }
 
 
@@ -71,21 +87,23 @@ pub fn key_h_go_home(
 
 
 pub fn debug_single_species(
-    mut query: Query<(Entity, &Species, &Transform, &WaterDesire, &Health)>,
+    query: Query<(Entity, &Species, &Transform, &WaterDesire, &Health, &FoodDesire)>,
 ) {
     let mut chose_blue: bool = false;
     let mut chose_red: bool = false;
     let mut chose_green: bool = false;
     let mut chose_yellow: bool = false;
-    for (entity, spec, transform, water_desire, health) in query.iter() {
+    for (entity, spec, transform, water_desire, health, food_desire) in query.iter() {
         // get only the first species in each race
-        let species_index = entity.index();
         if spec.race == SpeciesRace::Blue {
             if !chose_blue {
-                // info!("Blue {}", spec.position);
-                // info!("Blue health: {}", health.val);
+                 //info!("Blue vel {}, acc: {}", spec.velocity.length(), spec.acceleration.length());
+                info!("Blue health: {}", health.val);
                 // if water_desire.amount < 0.0 {info!("Blue is out of water")}
-                // info!("Blue vel: {}", spec.velocity.length());
+                // info!("Blue water: {}", water_desire.curr_val);
+                // info!("Blue hunger: {}", food_desire.curr_val);
+                // info!("Elapsed secs: {}", water_desire.timer.elapsed_secs());
+
             } 
             chose_blue = true;
         }
@@ -103,19 +121,49 @@ pub fn debug_single_species(
         }
         if spec.race == SpeciesRace::Yellow {
             if !chose_yellow {
-                info!("Yellow water amount: {}", water_desire.amount);
+                // info!("Yellow water amount: {}", water_desire.amount);
                 // info!("Yellow perception radius: {}", spec.perception_radius);
                 // info!("Yellow health: {}", health.val)
+                //info!("Yellow acc: {}", spec.acceleration.length());
             }
             chose_yellow = true;
-
         }
-
-
-
     }
-
 }
 
 
+
+
+
+pub fn zoom_system(
+    mut wheel: EventReader<MouseWheel>,
+    mut cam: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
+) {
+    let delta_zoom: f32 = wheel.read().map(|e| e.y).sum();
+    if delta_zoom == 0. {
+        return;
+    }
+
+    let (mut pos, mut cam) = cam.single_mut();
+
+    cam.scale += ZOOM_SPEED * delta_zoom * cam.scale;
+    cam.scale = cam.scale.clamp(MIN_ZOOM, MAX_ZOOM);
+    
+    //TODO make the zoom center around where the mouse currently is on the screen
+    //let screen_width = q_windows.single().width(); 
+    //let screen_height = q_windows.single().height(); 
+    //let screen_size = Vec2::new(screen_width, screen_height);
+
+    //if let Some(position) = q_windows.single().cursor_position() {
+
+        //let mouse_normalized_screen_pos = (position / screen_size) * 2. - Vec2::ONE;
+        //let mouse_world_pos = pos.translation.truncate() + mouse_normalized_screen_pos * cam.scale;
+
+        //pos.translation = (mouse_world_pos - mouse_normalized_screen_pos * cam.scale).extend(pos.translation.z);
+
+    //} else {
+        //println!("Cursor is not in the game window.");
+    //}
+}
 

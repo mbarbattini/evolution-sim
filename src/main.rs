@@ -1,25 +1,23 @@
 // TODO Include if loading an entire folder
 // use bevy::{asset::LoadedFolder, prelude::*};
 
-use bevy::{prelude::*, ecs::query::QueryEntityError};
+use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use bevy::ecs::query::ReadOnlyWorldQuery; use bevy::asset::LoadState;
 use health::{kill_zero_health, damage_low_stats};
 use homebase::create_homebases;
-use rand::Rng;
-use core::time;
-use std::thread::sleep;
-use noise::{NoiseFn, Perlin, Seedable};
-use std::time::Duration;
+use bevy_egui::EguiPlugin;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 
 use species::*;
 use my_utils::*;
-use player::*;
 use fps_counter::*;
 use water_source::*;
 use water_desire::*;
 use food_desire::*;
+use physics::*;
+use food_source::*;
+use debug_ui::*;
+use behavior::*;
 
 mod species;
 mod my_utils;
@@ -31,6 +29,9 @@ mod health;
 mod food_desire;
 mod food_source;
 mod homebase;
+mod physics;
+mod behavior;
+mod debug_ui;
 
 pub const SCREEN_WIDTH: f32 = 1920.;
 pub const SCREEN_HEIGHT: f32 = 1080.;
@@ -53,19 +54,21 @@ fn main() {
                 })
             .set(ImagePlugin::default_nearest())
         )
+        .init_resource::<UiState>()
         // PLUGINS
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
+        .add_plugins(EguiPlugin)
 
         .add_systems(Startup, 
-            (setup, setup_fps_counter, create_homebases, spawn_water_sources))
+            (setup, setup_fps_counter, create_homebases, spawn_water_sources, spawn_food_sources))
 
         .add_systems(PostStartup, initial_species_group_spawn)
 
         .add_systems(PreUpdate, 
-            (camera_movement, key_h_go_home, fps_text_update_system, fps_counter_showhide))
+            (camera_movement, key_h_go_home, fps_text_update_system, fps_counter_showhide, zoom_system))
 
         .add_systems(Update, 
-            (update_species_with_acceleration, damage_low_stats, update_hunger, move_to_food, move_to_water_source , update_water_desire))
+            (debug_menu_ui, damage_low_stats, update_hunger, /*food_behavior,l water_behavior,*/ update_water_desire, behaviors, /*update_species_physics_simple, species_separation*/))
 
         .add_systems(PostUpdate,
             (despawn_all_enemies, kill_zero_health, debug_single_species))
