@@ -16,7 +16,6 @@ pub struct WaterSource {
     pub radius: f32,
 }
 
-
 // TODO make the water source radius proportional to the sprite size in pixels
 impl WaterSource {
     pub fn new(position: Vec3) -> Self {
@@ -36,8 +35,7 @@ pub fn spawn_water_sources(
 ){
     let mut rng = rand::thread_rng();
 
-    let water_source_handle: Handle<Image> = asset_server.load("textures/simple_water_source.png");
-
+    let water_source_handle: Handle<Image> = asset_server.load("textures/water_source_simple.png");
 
     for _ in 0..NUMBER_SOURCES {
 
@@ -48,15 +46,11 @@ pub fn spawn_water_sources(
                 transform: Transform {
                      translation: position,
                      rotation: Quat::default(),
-                     scale: Vec3::splat(3.)},
+                     scale: Vec3::splat(2.)},
                 ..default()
             },
             WaterSource::new(position),    
         ));
-
     }
-
-
-
 }
 

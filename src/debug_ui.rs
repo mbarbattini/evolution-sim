@@ -9,6 +9,11 @@ pub struct UiState {
     pub water_desire_scaling: f32,
     pub food_desire_scaling: f32,
     pub max_acceleration: f32,
+    pub avoid_other_strength: f32,
+    pub avoid_same_strength: f32,
+    pub show_perception_radius: bool,
+    pub show_physics_vectors: bool,
+    pub vector_scaling: f32,
 }
 
 
@@ -23,15 +28,17 @@ pub fn debug_menu_ui(
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
         .show(ctx, |ui| {
-            ui.heading("Tuning Parameters");
+            ui.heading("Debug Menu");
 
-            ui.add(egui::Slider::new(&mut ui_state.max_acceleration, 10.0..=300.0).text("Max Acceleration"));
-            ui.add(egui::Slider::new(&mut ui_state.max_velocity, 0.01..=3.0).text("Max Velocity"));
-            ui.add(egui::Slider::new(&mut ui_state.water_desire_scaling, 0.1..=300.0).text("Water Desire Scaling"));
-            ui.add(egui::Slider::new(&mut ui_state.food_desire_scaling, 0.1..=300.0).text("Food Desire Scaling"));
-            ui.add(egui::Slider::new(&mut ui_state.steering_strength, 0.0001..=1.0).text("Steering Strength"));
-
-
+            ui.add(egui::Slider::new(&mut ui_state.max_acceleration, 0.01..=50.0).text("Max Acceleration"));
+            // ui.add(egui::Slider::new(&mut ui_state.water_desire_scaling, 0.1..=300.0).text("Water Desire Scaling"));
+            // ui.add(egui::Slider::new(&mut ui_state.food_desire_scaling, 0.1..=300.0).text("Food Desire Scaling"));
+            ui.add(egui::Slider::new(&mut ui_state.steering_strength, 0.01..=50.0).text("Steering Strength"));
+            ui.add(egui::Slider::new(&mut ui_state.avoid_other_strength, 0.01..=50.0).text("Avoid Other Strength"));
+            ui.add(egui::Slider::new(&mut ui_state.avoid_same_strength, 0.01..=50.0).text("Avoid Same Strength"));
+            ui.add(egui::Checkbox::new(&mut ui_state.show_perception_radius, "Show Perception Radius"));
+            ui.add(egui::Checkbox::new(&mut ui_state.show_physics_vectors, "Show Physics Vectors"));
+            ui.add(egui::Slider::new(&mut ui_state.vector_scaling, 1.0..=100.).text("Vector Scale"));
 
             ui.allocate_space(egui::Vec2::new(1.0, 10.0));
 

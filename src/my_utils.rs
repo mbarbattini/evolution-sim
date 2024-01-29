@@ -1,22 +1,12 @@
 use bevy::{prelude::*};
-use crate::SCREEN_WIDTH;
 use crate::{species::*, water_desire::WaterDesire, health::Health, food_desire::*};
 use bevy::input::mouse::MouseWheel;
 use bevy::window::PrimaryWindow;
-use bevy_egui::{egui, EguiContexts, EguiPlugin};
-
+use std::f32::consts::PI;
 
 const ZOOM_SPEED: f32 = 0.1;
 const MIN_ZOOM: f32 = 0.01;
 const MAX_ZOOM: f32 = 5.0;
-
-
-pub fn ui_example_system(mut contexts: EguiContexts) {
-    egui::Window::new("Hello").show(contexts.ctx_mut(), |ui| {
-        ui.label("world");
-    });
-}
-
 
 
 pub fn despawn_all_enemies(
@@ -97,13 +87,16 @@ pub fn debug_single_species(
         // get only the first species in each race
         if spec.race == SpeciesRace::Blue {
             if !chose_blue {
-                 //info!("Blue vel {}, acc: {}", spec.velocity.length(), spec.acceleration.length());
-                info!("Blue health: {}", health.val);
+                //  info!("Blue vel {}, acc: {}, pos: {}", spec.velocity.length(), spec.acceleration.length(), spec.position);
+                // info!("Blue health: {}", health.val);
                 // if water_desire.amount < 0.0 {info!("Blue is out of water")}
                 // info!("Blue water: {}", water_desire.curr_val);
                 // info!("Blue hunger: {}", food_desire.curr_val);
                 // info!("Elapsed secs: {}", water_desire.timer.elapsed_secs());
+                // let angle = f32::atan2(spec.velocity.x, spec.velocity.y);
+                // info!("angle : {}", angle);
 
+                // info!("x: {}, y: {}, angle: {}", spec.velocity.x, spec.velocity.y, angle);
             } 
             chose_blue = true;
         }
@@ -166,4 +159,5 @@ pub fn zoom_system(
         //println!("Cursor is not in the game window.");
     //}
 }
+
 

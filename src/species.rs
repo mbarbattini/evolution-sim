@@ -1,24 +1,26 @@
 use rand::Rng;
 use bevy::prelude::*;
 use noise::{NoiseFn, Perlin};
-use crate::food_desire::FoodDesire;
-use crate::water_desire::WaterDesire;
+use crate::food_desire::*;
+use crate::reproduce::Reproduction;
+use crate::water_desire::*;
+use crate::fight::*;
 use bevy::math::f32::{Vec2, Vec3};
 
 use crate::health::*;
 use crate::homebase::*;
 
 
+
+
 const SPAWN_SPREAD: f64 = 200.;
-pub const MAX_VELOCITY_HEALTHY: f32 = 10.;
-const MAX_ACCELERATION: f32 = 0.5;
-const SPECIES_TEXTURE_SCALE: f32 = 2.0;
+pub const SPECIES_TEXTURE_SCALE: f32 = 2.0;
 const MIN_SPECIES_SPAWN: u32 = 10;
 const MAX_SPECIES_SPAWN: u32 = 50;
-const PERCEPTION_RADIUS: f32 = 50.;
+const PERCEPTION_RADIUS: f32 = 100.;
 
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum SpeciesRace {
     Red,
     Blue,
@@ -50,7 +52,7 @@ pub struct Species {
 
 
 impl Species {
-    pub fn new(position: Vec3, race: SpeciesRace, homebase: Vec3) -> Self {
+    pub fn new(position: Vec3, race: SpeciesRace, homebase: Vec3, aggressiveness: f32, avoidance: f32) -> Self {
         let mut rng = rand::thread_rng();
         // let x_vel = rng.gen_range(-10.0..10.0);
         // let y_vel = rng.gen_range(-10.0..10.0);
@@ -61,15 +63,15 @@ impl Species {
             velocity: Vec3::ZERO,
             target_pos: homebase,
             position,
-            perception_radius: 25.0,
+            perception_radius: 100.0,
             n_neighbors: 0,
             homebase,
             steering_forces: Vec3::ZERO,
 
-            aggressiveness: 1.0,
+            aggressiveness,
             engineering: 1.0,
             tribalism: 1.0,
-            avoidance: 1.0,
+            avoidance,
             reproducibility: 1.0,
             fighting_score: 1.0,
             need_to_reproduce: false,
@@ -139,7 +141,7 @@ pub fn initial_species_group_spawn(
         let race = home.species_race;
 
         let number_sprites = rng.gen_range(MIN_SPECIES_SPAWN..MAX_SPECIES_SPAWN);
-        // let number_sprites = 1;
+        // let number_sprites = 2;
         // generate the number of sprites with offsets chosen randomly from the Perlin noise map
         for _ in 0..number_sprites {
             
@@ -157,11 +159,29 @@ pub fn initial_species_group_spawn(
             let y_coord: f32 = home.position.y + y_offset as f32;
             
             let mut species_image: Handle<Image> = blue_species_handle.clone();
+            let mut aggressiveness: f32 = 0.;
+            let mut avoidance: f32 = 0.;
             match race {
-                SpeciesRace::Blue => {species_image = blue_species_handle.clone();},
-                SpeciesRace::Red => {species_image = red_species_handle.clone();},
-                SpeciesRace::Yellow => {species_image = yellow_species_handle.clone();},
-                SpeciesRace::Green => {species_image = green_species_handle.clone();},
+                SpeciesRace::Blue => {
+                    species_image = blue_species_handle.clone();
+                    aggressiveness = 14.;
+                    avoidance = 30.;
+                },
+                SpeciesRace::Red => {
+                    species_image = red_species_handle.clone();
+                    aggressiveness = 8.;
+                    avoidance = 50.;
+                },
+                SpeciesRace::Yellow => {
+                    species_image = yellow_species_handle.clone();
+                    aggressiveness = 4.;
+                    avoidance = 50.;
+                },
+                SpeciesRace::Green => {
+                    species_image = green_species_handle.clone();
+                    aggressiveness = 1.;
+                    avoidance = 300.;
+                },
             };
             
             // SPAWN ALL SPECIES COMPONENTS
@@ -174,10 +194,18 @@ pub fn initial_species_group_spawn(
                          scale: Vec3::splat(SPECIES_TEXTURE_SCALE),
                     },
                     ..default()},
-                Species::new(Vec3::new(x_coord, y_coord, 10.), race, home.position),
+                Species::new(
+                    Vec3::new(x_coord, y_coord, 10.), 
+                    race, 
+                    home.position,
+                    aggressiveness,
+                    avoidance,
+                ),
                 WaterDesire::default(),
                 FoodDesire::default(),
                 Health::default(),
+                Fight::default(),
+                Reproduction::default(),
             ));
         }
     }

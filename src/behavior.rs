@@ -1,32 +1,31 @@
-use bevy::{prelude::*, ecs::system::adapter::new};
-use bevy_egui::egui::special_emojis;
-use crate::{debug_ui::*, species::*, food_source::*, food_desire::*, water_desire::{*, self}, water_source::*,};
+use bevy::prelude::*;
+use crate::{debug_ui::*, species::*, food_source::*, food_desire::*, water_desire::*, water_source::*};
+use std::f32::consts::PI;
 
-
-const IN_RANGE_FOOD: f32 = 5.;
-const MAX_VELOCITY: f32 = 50.;
+const MAX_VELOCITY: f32 = 2.;
 const MAX_ACCELERATION: f32 = 5.;
-const DRINK_RATE_HZ: f32 = 0.1;
 
-// Instead of scaling the species perception radius according to how desperate they are for food/water,
-// just do all decision making on where the species updates its target position here. Weight the options
-// by water desire, food desire, and the species inherent traits (aggressiveness, solitude, engineering, )
+/*
+NOTES:
 
-// TODO trigger events (fight, reproduce) in this function?
+- The velocity is always clamped to MAX_VELOCITY. 2.0 seems like a good value for the current setup.
 
-// TWO OPTIONS:
-// 1. Target position
-//    The chosen behavior modifies the species target position. They will travel to only this position
-// 2. All behaviors apply a force on the species 
-//    The force vectors are weighted according to the species traits. If one behavior is very strong, 
-//    then it will move towards that goal position more often than if a behavior is not as strong. 
-//     
+- The steering forces should not be clamped when they are added to the species. They should only be clamped at the
+  end, when we are adding the new acceleration to the current velocity to get the new velocity. This way if there is one dominating
+  behavior, it's strength is not diminished. We add all steering forces, the final vector looks most like the stongest one, then clamp.
+
+- ALWAYS normalize_or_zero steering forces before multiplying by its strength factor. If not, then it will look like a bug because one 
+  steering force is much larger than others when it shouldn't be
 
 
 
-// 1. Species wander around when there are no strong influencing behaviors
-// 2. Species move to a target at a stronger velocity when their food and water timers are done
-// 3. Species slow down as they approach the target
+
+
+*/
+
+
+
+
 
 
 pub fn behaviors(
@@ -35,34 +34,51 @@ pub fn behaviors(
     mut species_set: ParamSet<(
         Query<(&mut Transform, &mut Species, &mut FoodDesire, &mut WaterDesire)>,
         Query<(&mut Transform, &mut Species)>,
-        Query<&mut Species>,
+        Query<(Entity, &mut Species)>,
     )>,
+    mut gizmos: Gizmos,
     mut commands: Commands,
     ui_state: ResMut<UiState>,
     time: Res<Time>,
 ) {
 
-    // avoid species of other race
-    let mut avoid_force = Vec3::ZERO;
+    // species pair comparisons
     let mut species_only = species_set.p2();
     let mut combinations = species_only.iter_combinations_mut::<2>();
-    while let Some([mut this, mut other]) = combinations.fetch_next() {
-        let vector = other.position - this.position;
-        let distance = vector.length();
-        if this.race != other.race {
+    while let Some([mut this, other]) = combinations.fetch_next() {
+        let this_e = this.0;
+        let mut this_sp = this.1;
+
+        let other_e = other.0;
+        let other_sp = other.1;
+
+        let mut avoid_force = Vec3::ZERO;
+        let mut cohesion_force = Vec3::ZERO;
+        let other_to_this = this_sp.position - other_sp.position;
+        let distance = other_to_this.length();
+
+        // other race
+        if this_sp.race != other_sp.race {
             // avoid other races. Scale perception radius by species avoidance value
-            if distance > 0. && distance < this.perception_radius * this.avoidance {
-                avoid_force += -1.0 * (vector / distance);
-                this.steering_forces += avoid_force;
+            if distance > 0. && distance < 200. {//this.perception_radius + this.avoidance {
+                avoid_force += ui_state.avoid_other_strength * other_to_this.normalize_or_zero();
+                this_sp.steering_forces += avoid_force;
+                if ui_state.show_physics_vectors {
+                    gizmos.ray(this_sp.position, avoid_force * ui_state.vector_scaling, Color::YELLOW);
+                }
             }
-        } else { // avoid species of the same race
-            if distance > 0. && distance < this.perception_radius {
-                avoid_force += -1.0 * (vector / distance);
-                this.steering_forces += avoid_force;
+
+
+        // same race
+        } else {
+
+            // avoid species of the same race 
+            if distance > 0. && distance <  200. {//this.perception_radius {
+                avoid_force += ui_state.avoid_same_strength * other_to_this.normalize_or_zero();
+                this_sp.steering_forces += avoid_force;
             }
         }
     }
-
 
 
     // steer towards food and water
@@ -79,7 +95,7 @@ pub fn behaviors(
         for (food_source_e, food_source) in food_source_query.iter_mut() {
 
             // don't search if food_desire is greater than 0.
-            if food_des.curr_val > 0. { break; }
+            if food_des.val > 0. { break; }
             // if food_des.timer.percent_left() > food_des.grace_period_percent { break };
 
             let species_to_target = food_source.position.xy() - sp.position.xy();
@@ -87,18 +103,19 @@ pub fn behaviors(
 
             // make sure food entity still exists before species goes to it
             if let Some(_) = commands.get_entity(food_source_e) { 
-
+                //TODO case where there is no food, and as soon as it spawns all species steer
+                //towards it. Make it so they steer towards it only if food is within their perception radius? Then the
+                //species might never see the food
+                //if distance < min_distance && distance < sp.perception_radius {
                 if distance < min_distance {
-                    // let max_steer = species_to_target.normalize_or_zero() * 10.;
-                    // let acc_vec2 = (species_to_target.normalize_or_zero()).lerp(max_steer, food_des.timer.percent());   
-                    let acc_vec2 = species_to_target.normalize_or_zero() * food_des.curr_val.abs();
+                    let acc_vec2 = species_to_target.normalize_or_zero() * food_des.val.abs();
 
                     food_force = Vec3::new(acc_vec2.x, acc_vec2.y, 0.);
                     min_distance = distance;
                 }
                 // eat if within range
                 if distance < food_des.in_range_eat {
-                    food_des.curr_val += food_source.value;
+                    food_des.val += food_source.value;
                     commands.entity(food_source_e).despawn();
                 }
             } else { // if it doesn't exist, just move on to the next food source
@@ -113,7 +130,7 @@ pub fn behaviors(
         let mut water_force = Vec3::ZERO;
         for (water_source_e, mut water_source) in water_source_query.iter_mut() {
             // if water_des.timer.percent_left() > water_des.grace_period_percent { break; };
-            if water_des.curr_val > 0. { break; }
+            if water_des.val > 0. { break; }
 
             let species_to_target = water_source.position.xy() - sp.position.xy();
             let distance = species_to_target.length();
@@ -123,7 +140,7 @@ pub fn behaviors(
                 if distance < min_distance {
                     // let max_steer = species_to_target.normalize_or_zero() * 10.;
                     // let acc_vec2 = (species_to_target.normalize_or_zero()).lerp(max_steer, water_des.timer.percent());
-                    let acc_vec2 = species_to_target.normalize_or_zero() * water_des.curr_val.abs();
+                    let acc_vec2 = species_to_target.normalize_or_zero() * water_des.val.abs();
 
                     water_force = Vec3::new(acc_vec2.x, acc_vec2.y, 0.);
                     min_distance = distance;
@@ -133,17 +150,22 @@ pub fn behaviors(
                     sp.velocity *= 0.95;
                     water_des.is_consuming = true;
                     let val = water_des.drink_rate_hz * time.delta_seconds();
-                    water_des.curr_val += val;
+                    water_des.val += val;
                     water_source.value -= val;
                 } 
                 // if it is greater than 0, then start over so it has a grace period by setting value to capacity
-                if water_des.curr_val > 0. {
-                    water_des.curr_val = water_des.spawn_val;
+                if water_des.val > 0. {
+                    water_des.val = water_des.spawn_val;
                     min_distance = 1000000.0;
                 }
             }
         }
         sp.steering_forces += water_force;
+
+        // steer towards homebase. If other behaviors are close to 0, this one will dominate, even though it has no strength factor
+        // TODO add strength factor? Maybe increase strength when the species health is low, or it has no food, water, etc.
+        let steering_homebase = (sp.homebase - sp.position).normalize_or_zero();
+        sp.steering_forces += steering_homebase;
     }
 
 
@@ -167,19 +189,34 @@ pub fn behaviors(
         }
 
         if ui_state.steering_strength != 0. {
-            sp.steering_forces *= ui_state.steering_strength;
+            sp.steering_forces = sp.steering_forces.clamp_length_max(ui_state.steering_strength);
+        } else {
+            sp.steering_forces = sp.steering_forces.clamp_length_max(1.0);
         }
 
         let mut new_acc = (cur_acc + sp.steering_forces) * time.delta_seconds();
+
+        if ui_state.max_acceleration != 0. {
+            new_acc = new_acc.clamp_length_max(ui_state.max_acceleration);
+        } else {
+            new_acc = new_acc.clamp_length_max(1.0);
+        }
+
         let mut new_vel = cur_vel + new_acc;
 
-        if ui_state.max_velocity != 0. {
-            new_vel = new_vel.clamp_length_max(ui_state.max_velocity);
-        } else {
-            new_vel = new_vel.clamp_length_max(1.0);
-        }
+        new_vel = new_vel.clamp_length_max(MAX_VELOCITY);
         
         let new_pos = cur_pos + new_vel;
+
+        // acceleration is always smaller than velocity, so scale even more
+        if ui_state.show_physics_vectors {
+            gizmos.ray(new_pos, new_vel * ui_state.vector_scaling, Color::GREEN);
+            gizmos.ray(new_pos, new_acc * ui_state.vector_scaling, Color::RED);
+        }
+        if ui_state.show_perception_radius {
+            gizmos.circle(new_pos, Vec3::Z, sp.perception_radius, Color::WHITE);
+        }
+
 
         // now set species physics data
         sp.velocity = new_vel;
@@ -188,8 +225,14 @@ pub fn behaviors(
         // always render the sprite in front of everything else with Z coord
         let sprite_position = Vec3::new(sp.position.x, sp.position.y, 10.);
         tf.translation = sprite_position;
-        // transform.rotation = Quat::from_rotation_y(spec.velocity.angle_between(Vec3::X));
+        let angle = f32::atan2(sp.velocity.y, sp.velocity.x);
+        // subtracting PI/2 makes the sprite in line with y axis, travels facing the top
+        // not subtracting makes it in line with x axis, travels facing the side
+        tf.rotation = Quat::from_euler(EulerRot::XYZ, 0., 0., angle - PI/2.);
     }
+
+
+
 
 
 
