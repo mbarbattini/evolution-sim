@@ -5,17 +5,18 @@ use crate::food_desire::*;
 use crate::reproduce::Reproduction;
 use crate::water_desire::*;
 use crate::fight::*;
-use bevy::math::f32::{Vec2, Vec3};
+use bevy::math::f32::Vec3;
 
 use crate::health::*;
 use crate::homebase::*;
+use crate::physics::*;
 
 
 
 
 const SPAWN_SPREAD: f64 = 200.;
 pub const SPECIES_TEXTURE_SCALE: f32 = 2.0;
-const MIN_SPECIES_SPAWN: u32 = 10;
+const MIN_SPECIES_SPAWN: u32 = 20;
 const MAX_SPECIES_SPAWN: u32 = 50;
 const PERCEPTION_RADIUS: f32 = 100.;
 
@@ -36,37 +37,24 @@ pub struct Species {
     pub avoidance: f32, // large avoidance means the species will steer away from other species of a different race
     pub reproducibility: f32,
     pub fighting_score: f32,
-    pub need_to_reproduce: bool,
     pub race: SpeciesRace,
-    pub target_pos: Vec3,
     pub homebase: Vec3,
-    pub steering_forces: Vec3,
 
     pub n_neighbors: u32,
-    pub reproduction_factor: f32,
     pub perception_radius: f32,
-    pub acceleration: Vec3,
-    pub velocity: Vec3,
-    pub position: Vec3,
 }
 
 
 impl Species {
-    pub fn new(position: Vec3, race: SpeciesRace, homebase: Vec3, aggressiveness: f32, avoidance: f32) -> Self {
+    pub fn new(race: SpeciesRace, homebase: Vec3, aggressiveness: f32, avoidance: f32) -> Self {
         let mut rng = rand::thread_rng();
         // let x_vel = rng.gen_range(-10.0..10.0);
         // let y_vel = rng.gen_range(-10.0..10.0);
         Self {
             race,
-            reproduction_factor: 0.0,
-            acceleration: Vec3::ZERO,
-            velocity: Vec3::ZERO,
-            target_pos: homebase,
-            position,
             perception_radius: 100.0,
             n_neighbors: 0,
             homebase,
-            steering_forces: Vec3::ZERO,
 
             aggressiveness,
             engineering: 1.0,
@@ -74,7 +62,6 @@ impl Species {
             avoidance,
             reproducibility: 1.0,
             fighting_score: 1.0,
-            need_to_reproduce: false,
         }
     }
 }
@@ -84,15 +71,9 @@ impl Default for Species {
     fn default() -> Self {
         Self {
             race: SpeciesRace::Red,
-            reproduction_factor: 0.0,
-            acceleration: Vec3::ZERO,
-            velocity: Vec3::new(0., 0., 0.),
-            position: Vec3::ZERO,
-            target_pos: Vec3::ZERO,
             perception_radius: PERCEPTION_RADIUS,
             n_neighbors: 0,
             homebase: Vec3::ZERO,
-            steering_forces: Vec3::ZERO,
             
             aggressiveness: 1.0,
             engineering: 1.0,
@@ -100,7 +81,6 @@ impl Default for Species {
             avoidance: 1.0,
             reproducibility: 1.0,
             fighting_score: 1.0,
-            need_to_reproduce: false,
         }
     }
 
@@ -116,10 +96,10 @@ pub fn initial_species_group_spawn(
     /* Generate a cluster of sprites as some center coordinate with random offsets from the center
      * with Perlin noise. 
      */
-    let blue_species_handle: Handle<Image> = asset_server.load("textures/species/blue_species.png");
-    let red_species_handle: Handle<Image>  = asset_server.load("textures/species/red_species.png");
-    let yellow_species_handle: Handle<Image> = asset_server.load("textures/species/yellow_species.png");
-    let green_species_handle: Handle<Image> = asset_server.load("textures/species/green_species.png");
+    let blue_species_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/species/blue_species.png");
+    let red_species_handle: Handle<Image>  = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/species/red_species.png");
+    let yellow_species_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/species/yellow_species.png");
+    let green_species_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/species/green_species.png");
 
     let mut rng = rand::thread_rng();
 
@@ -195,7 +175,6 @@ pub fn initial_species_group_spawn(
                     },
                     ..default()},
                 Species::new(
-                    Vec3::new(x_coord, y_coord, 10.), 
                     race, 
                     home.position,
                     aggressiveness,
@@ -206,6 +185,7 @@ pub fn initial_species_group_spawn(
                 Health::default(),
                 Fight::default(),
                 Reproduction::default(),
+                Physics::new(Vec3::new(x_coord, y_coord, 0.)),
             ));
         }
     }

@@ -55,14 +55,14 @@ pub fn create_homebases(
         let homebase_y = rng.gen_range(min_y..max_y);
         let homebase_pos: Vec3 = Vec3::new(homebase_x, homebase_y, -10.);
 
-        let mut texture_handle: Handle<Image> = asset_server.load("textures/Homebases/blue_homebase.png");
+        let mut texture_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/Homebases/blue_homebase.png");
 
         let mut race: SpeciesRace = SpeciesRace::Red;
         match i {
-            1 => {race = SpeciesRace::Blue; texture_handle = asset_server.load("textures/Homebases/blue_homebase.png")}
-            2 => {race = SpeciesRace::Red; texture_handle = asset_server.load("textures/Homebases/red_homebase.png")}
-            3 => {race = SpeciesRace::Yellow; texture_handle = asset_server.load("textures/Homebases/yellow_homebase.png")}
-            4 => {race = SpeciesRace::Green; texture_handle = asset_server.load("textures/Homebases/green_homebase.png")},
+            1 => {race = SpeciesRace::Blue; texture_handle = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/Homebases/blue_homebase.png")}
+            2 => {race = SpeciesRace::Red; texture_handle = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/Homebases/red_homebase.png")}
+            3 => {race = SpeciesRace::Yellow; texture_handle = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/Homebases/yellow_homebase.png")}
+            4 => {race = SpeciesRace::Green; texture_handle = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/Homebases/green_homebase.png")},
             _ => continue,
         };
 

@@ -59,7 +59,6 @@ pub fn fight_species(
             // fill hunger if kill other species
             if other_health.val < 0. {
                 this_hunger.val += SPECIES_FOOD_EAT_RESTORE;
-                
             }
             }
         }

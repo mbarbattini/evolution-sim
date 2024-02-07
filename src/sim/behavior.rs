@@ -1,8 +1,10 @@
 use bevy::prelude::*;
-use crate::{debug_ui::*, species::*, food_source::*, food_desire::*, water_desire::*, water_source::*};
+use rand::Rng;
+use crate::{debug_ui::*, species::*, food_source::*, food_desire::*, water_desire::*, water_source::*, reproduce::*};
 use std::f32::consts::PI;
 
-const MAX_VELOCITY: f32 = 2.;
+use crate::physics::*;
+
 const MAX_ACCELERATION: f32 = 5.;
 
 /*
@@ -24,6 +26,12 @@ NOTES:
 */
 
 
+// how to implement quadtree?
+// for spec in query.iter_mut()
+//     for each entity in same quadtree cell as spec
+//     do stuff
+
+
 
 
 
@@ -32,10 +40,12 @@ pub fn behaviors(
     mut food_source_query: Query<(Entity, &mut FoodSource)>,
     mut water_source_query: Query<(Entity, &mut WaterSource)>,
     mut species_set: ParamSet<(
-        Query<(&mut Transform, &mut Species, &mut FoodDesire, &mut WaterDesire)>,
-        Query<(&mut Transform, &mut Species)>,
-        Query<(Entity, &mut Species)>,
+        Query<(Entity, &mut Transform, &mut Species, &mut FoodDesire, &mut WaterDesire, &mut Physics)>,
+        Query<(Entity, &mut Transform, &mut Species)>,
+        Query<(Entity, &mut Species, &mut Physics)>,
+        Query<(Entity, &mut Species, &mut Physics, &mut Reproduction)>
     )>,
+    mut reproduce_event_writer: EventWriter<Reproduce>,
     mut gizmos: Gizmos,
     mut commands: Commands,
     ui_state: ResMut<UiState>,
@@ -46,15 +56,14 @@ pub fn behaviors(
     let mut species_only = species_set.p2();
     let mut combinations = species_only.iter_combinations_mut::<2>();
     while let Some([mut this, other]) = combinations.fetch_next() {
-        let this_e = this.0;
-        let mut this_sp = this.1;
+        let this_sp = this.1;
+        let mut this_phys = this.2;
 
-        let other_e = other.0;
         let other_sp = other.1;
+        let other_phys = other.2;
 
         let mut avoid_force = Vec3::ZERO;
-        let mut cohesion_force = Vec3::ZERO;
-        let other_to_this = this_sp.position - other_sp.position;
+        let other_to_this = this_phys.pos - other_phys.pos;
         let distance = other_to_this.length();
 
         // other race
@@ -62,20 +71,18 @@ pub fn behaviors(
             // avoid other races. Scale perception radius by species avoidance value
             if distance > 0. && distance < 200. {//this.perception_radius + this.avoidance {
                 avoid_force += ui_state.avoid_other_strength * other_to_this.normalize_or_zero();
-                this_sp.steering_forces += avoid_force;
+                this_phys.steering += avoid_force;
                 if ui_state.show_physics_vectors {
-                    gizmos.ray(this_sp.position, avoid_force * ui_state.vector_scaling, Color::YELLOW);
+                    gizmos.ray(this_phys.pos, avoid_force * ui_state.vector_scaling, Color::YELLOW);
                 }
             }
-
-
         // same race
         } else {
 
             // avoid species of the same race 
             if distance > 0. && distance <  200. {//this.perception_radius {
                 avoid_force += ui_state.avoid_same_strength * other_to_this.normalize_or_zero();
-                this_sp.steering_forces += avoid_force;
+                this_phys.steering += avoid_force;
             }
         }
     }
@@ -83,10 +90,12 @@ pub fn behaviors(
 
     // steer towards food and water
     for (
+        e,
         mut tf,
         mut sp, 
         mut food_des, 
-        mut water_des
+        mut water_des,
+        mut phys,
     ) in species_set.p0().iter_mut() {
 
         // steer towards food
@@ -98,7 +107,7 @@ pub fn behaviors(
             if food_des.val > 0. { break; }
             // if food_des.timer.percent_left() > food_des.grace_period_percent { break };
 
-            let species_to_target = food_source.position.xy() - sp.position.xy();
+            let species_to_target = food_source.position.xy() - phys.pos.xy();
             let distance = species_to_target.length();
 
             // make sure food entity still exists before species goes to it
@@ -122,7 +131,8 @@ pub fn behaviors(
                 continue;
             }
         }
-        sp.steering_forces += food_force;
+        //sp.steering_forces += food_force;
+        phys.steering += food_force * time.delta_seconds();
 
 
         // steer to water sources
@@ -132,7 +142,7 @@ pub fn behaviors(
             // if water_des.timer.percent_left() > water_des.grace_period_percent { break; };
             if water_des.val > 0. { break; }
 
-            let species_to_target = water_source.position.xy() - sp.position.xy();
+            let species_to_target = water_source.position.xy() - phys.pos.xy();
             let distance = species_to_target.length();
 
             if let Some(_) = commands.get_entity(water_source_e) {
@@ -147,7 +157,7 @@ pub fn behaviors(
                 }
                 // drink
                 if distance < water_des.in_range_drink {
-                    sp.velocity *= 0.95;
+                    phys.vel *= 0.95;
                     water_des.is_consuming = true;
                     let val = water_des.drink_rate_hz * time.delta_seconds();
                     water_des.val += val;
@@ -160,82 +170,44 @@ pub fn behaviors(
                 }
             }
         }
-        sp.steering_forces += water_force;
+        phys.steering += water_force * time.delta_seconds();
 
         // steer towards homebase. If other behaviors are close to 0, this one will dominate, even though it has no strength factor
         // TODO add strength factor? Maybe increase strength when the species health is low, or it has no food, water, etc.
-        let steering_homebase = (sp.homebase - sp.position).normalize_or_zero();
-        sp.steering_forces += steering_homebase;
+        let steering_homebase = (sp.homebase - phys.pos).normalize_or_zero();
+        phys.steering += steering_homebase * time.delta_seconds();
+
+
+
     }
 
+    //let mut query_species_reproduction = species_set.p3();
+    //let mut reproduction_combinations = query_species_reproduction.iter_combinations_mut::<2>();
+    //while let Some([(this_e, this_sp, mut this_phys, this_rep), (other_e, other_sp, other_phys, other_rep)]) = reproduction_combinations.fetch_next() {
 
-    // update species physics
-    for (mut tf, mut sp) in species_set.p1().iter_mut() {
-        // update species physics
-        let mut cur_acc = sp.acceleration;
-        let mut cur_vel = sp.velocity;
-        let mut cur_pos = sp.position;
+        //// TODO steer towards closest one? Would then be O(n^2), not big of a deal if # species
+        //// in mating pool are small
 
-        // info!("acc: {}, vel: {}, pos: {}", cur_acc.length(), cur_vel.length(), cur_pos.length());
-        
-        if cur_acc.is_nan() {
-            cur_acc = Vec3::ZERO;
-        } 
-        if cur_vel.is_nan() {
-            cur_vel = Vec3::ZERO;
-        }
-        if cur_pos.is_nan() {
-            cur_pos = sp.homebase;
-        }
-
-        if ui_state.steering_strength != 0. {
-            sp.steering_forces = sp.steering_forces.clamp_length_max(ui_state.steering_strength);
-        } else {
-            sp.steering_forces = sp.steering_forces.clamp_length_max(1.0);
-        }
-
-        let mut new_acc = (cur_acc + sp.steering_forces) * time.delta_seconds();
-
-        if ui_state.max_acceleration != 0. {
-            new_acc = new_acc.clamp_length_max(ui_state.max_acceleration);
-        } else {
-            new_acc = new_acc.clamp_length_max(1.0);
-        }
-
-        let mut new_vel = cur_vel + new_acc;
-
-        new_vel = new_vel.clamp_length_max(MAX_VELOCITY);
-        
-        let new_pos = cur_pos + new_vel;
-
-        // acceleration is always smaller than velocity, so scale even more
-        if ui_state.show_physics_vectors {
-            gizmos.ray(new_pos, new_vel * ui_state.vector_scaling, Color::GREEN);
-            gizmos.ray(new_pos, new_acc * ui_state.vector_scaling, Color::RED);
-        }
-        if ui_state.show_perception_radius {
-            gizmos.circle(new_pos, Vec3::Z, sp.perception_radius, Color::WHITE);
-        }
+        //if this_rep.in_mating_pool {
+            //// steer towards other members in the mating pool
+            //let this_to_other = this_phys.pos - other_phys.pos;
+            //let reproduction_force = this_to_other.normalize_or_zero() * (1. / this_to_other.length());
+            //this_phys.steering += reproduction_force * time.delta_seconds();
+            //// if close enough, send reproduction event
+            //if this_to_other.length() < 20.0 {
+                //info!("Fucked and had a baby!");
+                //reproduce_event_writer.send(Reproduce(this_e, other_e));
+            //}
+        //}
 
 
-        // now set species physics data
-        sp.velocity = new_vel;
-        sp.position = new_pos;
-
-        // always render the sprite in front of everything else with Z coord
-        let sprite_position = Vec3::new(sp.position.x, sp.position.y, 10.);
-        tf.translation = sprite_position;
-        let angle = f32::atan2(sp.velocity.y, sp.velocity.x);
-        // subtracting PI/2 makes the sprite in line with y axis, travels facing the top
-        // not subtracting makes it in line with x axis, travels facing the side
-        tf.rotation = Quat::from_euler(EulerRot::XYZ, 0., 0., angle - PI/2.);
-    }
+    //}
 
 
 
 
 
-
+// END OF GIANT FUNCTION
 }
 
 

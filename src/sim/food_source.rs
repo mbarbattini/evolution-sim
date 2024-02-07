@@ -65,7 +65,7 @@ pub fn spawn_food_sources(
 
 
     // loop through grid of centers and spawn food
-    let food_handle: Handle<Image> = asset_server.load("textures/food/food_1.png");
+    let food_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/food/food_1.png");
     for x in 0..PERLIN_X_POINTS {
         for y in 0..PERLIN_Y_POINTS {
             // if the elevation of the perlin noise surface is above some threshold, spawn a cluster of food there
@@ -107,7 +107,7 @@ pub fn spawn_food_replenish(
 ){
     let mut rng = rand::thread_rng();
 
-    let food_handle: Handle<Image> = asset_server.load("textures/food/food_1.png");
+    let food_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/food/food_1.png");
     for pos in food_locations.position.iter() {
 
         let chance = rng.gen_range(0.0..1.0);

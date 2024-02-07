@@ -77,7 +77,7 @@ pub fn kill_zero_health(
     asset_server: Res<AssetServer>,
 ){
     
-    let mut blood_handle: Handle<Image> = asset_server.load("textures/blood_splat_1.png");
+    let mut blood_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/blood_splat_1.png");
     for (e, h, tf) in query.iter_mut() {
         if h.val < 0. {
             commands.entity(e).despawn();

@@ -35,7 +35,7 @@ pub fn spawn_water_sources(
 ){
     let mut rng = rand::thread_rng();
 
-    let water_source_handle: Handle<Image> = asset_server.load("textures/water_source_simple.png");
+    let water_source_handle: Handle<Image> = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/water_source_simple.png");
 
     for _ in 0..NUMBER_SOURCES {
 

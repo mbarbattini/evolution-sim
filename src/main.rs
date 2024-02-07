@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use health::{kill_zero_health, damage_low_stats};
-use homebase::create_homebases;
+use sim::*;
 use bevy_egui::EguiPlugin;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+
+mod sim;
 
 use species::*;
 use my_utils::*;
@@ -16,28 +17,28 @@ use debug_ui::*;
 use behavior::*;
 use fight::*;
 use health::*;
-use reproduce::*;
+use homebase::*;
 
-mod species;
-mod my_utils;
-mod player;
-mod fps_counter;
-mod water_source;
-mod water_desire;
-mod health;
-mod food_desire;
-mod food_source;
-mod homebase;
-mod behavior;
-mod debug_ui;
-mod physics;
-mod fight;
-mod reproduce;
+
+// mod species;
+// mod my_utils;
+// mod player;
+// mod fps_counter;
+// mod water_source;
+// mod water_desire;
+// mod health;
+// mod food_desire;
+// mod food_source;
+// mod homebase;
+// mod behavior;
+// mod debug_ui;
+// mod physics;
+// mod fight;
 
 pub const SCREEN_WIDTH: f32 = 1920.;
 pub const SCREEN_HEIGHT: f32 = 1080.;
-pub const MAP_WIDTH: f32 = 4000.;
-pub const MAP_HEIGHT: f32 = 4000.;
+pub const MAP_WIDTH: f32 = 1920.;
+pub const MAP_HEIGHT: f32 = 1080.;
 
 
 fn main() {
@@ -57,7 +58,7 @@ fn main() {
         )
         .init_resource::<UiState>()
         .init_resource::<FoodLocations>()
-        .add_event::<Reproduce>()
+        .init_resource::<EntityQuadtree>()
         // PLUGINS
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_plugins(EguiPlugin)
@@ -71,7 +72,7 @@ fn main() {
             (camera_movement, key_h_go_home, fps_text_update_system, fps_counter_showhide, zoom_system))
 
         .add_systems(Update, 
-            (debug_menu_ui, damage_low_stats, update_reproduction, react_to_reproduction_event, update_hunger, update_water_desire, behaviors, spawn_food_replenish, fight_species, fade_out_blood))
+            (debug_menu_ui, damage_low_stats, update_hunger, update_water_desire, behaviors, spawn_food_replenish, fight_species, fade_out_blood))
 
         .add_systems(PostUpdate,
             (despawn_all_enemies, kill_zero_health, debug_single_species))
