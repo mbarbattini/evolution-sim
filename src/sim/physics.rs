@@ -51,7 +51,7 @@ pub fn update_physics(
 
         if cur_acc.is_nan() {
             cur_acc = Vec3::ZERO;
-        } 
+        }
         if cur_vel.is_nan() {
             cur_vel = Vec3::ZERO;
         }
@@ -64,7 +64,7 @@ pub fn update_physics(
         } else {
             phys.steering = phys.steering.clamp_length_max(MAX_ACCELERATION);
         }
-        
+
         // only physics value that is mutliplied by time.delta_seconds(). More frames = more
         // acceleration, but we don't want this, so need to multiply by the update time. More
         // frames = smaller time.delta_seconds(), balances. Does it need to be just here, or also
@@ -80,7 +80,7 @@ pub fn update_physics(
         let mut new_vel = (cur_vel + new_acc);
 
         new_vel = new_vel.clamp_length_max(MAX_VELOCITY);
-        
+
         let new_pos = (cur_pos + new_vel);
 
         // now set species physics data

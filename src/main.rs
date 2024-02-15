@@ -18,28 +18,21 @@ use behavior::*;
 use fight::*;
 use health::*;
 use homebase::*;
+use quadtree::*;
+use reproduce::*;
+use physics::*;
+use entity_wrapper::*;
 
-
-// mod species;
-// mod my_utils;
-// mod player;
-// mod fps_counter;
-// mod water_source;
-// mod water_desire;
-// mod health;
-// mod food_desire;
-// mod food_source;
-// mod homebase;
-// mod behavior;
-// mod debug_ui;
-// mod physics;
-// mod fight;
 
 pub const SCREEN_WIDTH: f32 = 1920.;
 pub const SCREEN_HEIGHT: f32 = 1080.;
 pub const MAP_WIDTH: f32 = 1920.;
 pub const MAP_HEIGHT: f32 = 1080.;
 
+const QUADTREE_SIZE: Rect = Rect {
+    min: Vec2::new(-SCREEN_WIDTH / 2., -SCREEN_HEIGHT / 2.),
+    max: Vec2::new(SCREEN_WIDTH / 2., SCREEN_HEIGHT / 2.),
+};
 
 fn main() {
 
@@ -58,28 +51,28 @@ fn main() {
         )
         .init_resource::<UiState>()
         .init_resource::<FoodLocations>()
-        .init_resource::<EntityQuadtree>()
+        .insert_resource(EntityQuadtree::empty(QUADTREE_SIZE))
         // PLUGINS
         .add_plugins(FrameTimeDiagnosticsPlugin::default())
         .add_plugins(EguiPlugin)
 
-        .add_systems(Startup, 
+        .add_systems(Startup,
             (setup, setup_fps_counter, create_homebases, spawn_water_sources, spawn_food_sources))
 
         .add_systems(PostStartup, initial_species_group_spawn)
 
-        .add_systems(PreUpdate, 
+        .add_systems(PreUpdate,
             (camera_movement, key_h_go_home, fps_text_update_system, fps_counter_showhide, zoom_system))
 
-        .add_systems(Update, 
-            (debug_menu_ui, damage_low_stats, update_hunger, update_water_desire, behaviors, spawn_food_replenish, fight_species, fade_out_blood))
+        .add_systems(Update,
+            (debug_menu_ui, damage_low_stats, update_quadtree, update_physics, update_water_desire, behaviors, spawn_food_replenish, /*fight_species,*/ fade_out_blood))
 
         .add_systems(PostUpdate,
             (despawn_all_enemies, kill_zero_health, debug_single_species))
         // EVENTS
-        // .add_systems(Update, 
+        // .add_systems(Update,
         //     (trigger_event_single_species, react_to_event_single_species))
-        // .add_event::<Reproduce>()
+        .add_event::<Reproduce>()
 
         .run();
 }
@@ -91,7 +84,7 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
 
-    let origin_texture = asset_server.load("textures/origin_marker_slim.png");
+    let origin_texture = asset_server.load("/Users/matthewbarbattini/Desktop/evolution-sim-bevy/textures/origin_marker_slim.png");
 
     // create an origin sprite marker
     commands.spawn((
@@ -106,6 +99,5 @@ fn setup(
     ));
 
     commands.spawn(Camera2dBundle::default());
-    
-}
 
+}

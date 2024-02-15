@@ -1,56 +1,10 @@
-use bevy::math::Rect;
 use std::ops::AddAssign;
-use std::hash::Hash;
 
-// ------------------------------------------
-//                  Quadtree
-// ------------------------------------------
-pub trait QuadtreeValue: PartialEq + Eq + Hash + Clone {
-    fn get_rect(&self) -> &Rect;
-}
+use bevy::{math::Rect, utils::HashSet};
 
-pub struct Quadtree<T: QuadtreeValue> {
-    pub rect: Rect,
-    pub root: QuadtreeNode<T>,
-}
-
-impl<T: QuadtreeValue> Quadtree<T> {
-    pub fn empty(size: Rect) -> Self {
-        Quadtree {
-            rect: size,
-            root: QuadtreeNode::<T>::empty(size.clone(), 0),
-        }
-    }
-
-    pub fn add(&mut self, value: T) {
-        //only add if value is contained within our rect
-        if self.root.contains_rect(value.get_rect()) {
-            self.root.add(value);
-        }
-    }
-
-    pub fn delete(&mut self, value: &T) -> Option<T> {
-        match self.query_value_mut(value) {
-            Some(node) => node.delete(value),
-            None => None,
-        }
-    }
-
-    pub fn query_value_mut(&mut self, value: &T) -> Option<&mut QuadtreeNode<T>> {
-        self.root.find_value_mut(value)
-    }
-
-    pub fn query_rect(&self, rect: &Rect) -> Option<&QuadtreeNode<T>> {
-        self.root.query_rect(rect)
-    }
-
-    pub fn query_rect_mut(&mut self, rect: &Rect) -> Option<&mut QuadtreeNode<T>> {
-        self.root.query_rect_mut(rect)
-    }
-}
-// ------------------------------------------
-//                  QuadtreeNode
-// ------------------------------------------
+use crate::rect_utils::{partition_rect, rect_contains_rect};
+use crate::quadtree::{MAX_DEPTH, THRESHOLD};
+use crate::{quadtree_value::QuadtreeValue};
 
 pub struct QuadtreeNode<T> {
     pub rect: Rect,
@@ -219,68 +173,4 @@ impl<T: QuadtreeValue> QuadtreeNode<T> {
             }
         }
     }
-}
-
-// ----------------------------------------------------------------------
-//                  Entity Wrapper. What bevy data goes into the Quadtree
-// ----------------------------------------------------------------------
-#[derive(Clone)]
-pub struct EntityWrapper {
-    pub entity: Entity,
-    pub rect: Rect,
-    pub velocity: Vec3,
-}
-
-impl EntityWrapper {
-    pub fn new(entity: Entity, velocity: &Vec3, transform: &Transform) -> Self {
-        EntityWrapper {
-            entity,
-            velocity: velocity.clone(),
-            rect: transform_to_rect(transform),
-        }
-    }
-}
-
-impl QuadtreeValue for EntityWrapper {
-    fn get_rect(&self) -> &Rect {
-        &self.rect
-    }
-}
-
-impl PartialEq for EntityWrapper {
-    fn eq(&self, other: &Self) -> bool {
-        self.entity == other.entity
-    }
-}
-
-impl Hash for EntityWrapper {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.entity.hash(state);
-    }
-}
-
-impl Eq for EntityWrapper {}
-
-pub type EntityQuadtree = Quadtree<EntityWrapper>;
-
-
-
-
-// ------------------------------------------
-//                  Bevy System
-// ------------------------------------------
-pub fn update_quadtree(
-    entity_query: Query<(Entity, &Kinematics, &Transform), With<Boid>>,
-    mut quadtree: ResMut<EntityQuadtree>,
-) {
-    entity_query.for_each(|(entity, kinematics, transform)| {
-        let value = EntityWrapper::new(entity, &kinematics.velocity, transform);
-        if let Some(node) = quadtree.query_rect_mut(value.get_rect()) {
-            if !node.contains_value(&value) {
-                quadtree.delete(&value);
-                quadtree.add(value);
-            }
-        }
-    });
-    // QuadtreeStats::calculate(&quadtree).print();
 }

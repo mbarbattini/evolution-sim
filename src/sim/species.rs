@@ -16,7 +16,7 @@ use crate::physics::*;
 
 const SPAWN_SPREAD: f64 = 200.;
 pub const SPECIES_TEXTURE_SCALE: f32 = 2.0;
-const MIN_SPECIES_SPAWN: u32 = 20;
+const MIN_SPECIES_SPAWN: u32 = 10;
 const MAX_SPECIES_SPAWN: u32 = 50;
 const PERCEPTION_RADIUS: f32 = 100.;
 

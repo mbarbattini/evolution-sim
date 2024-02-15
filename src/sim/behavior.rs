@@ -1,11 +1,16 @@
 use bevy::prelude::*;
 use rand::Rng;
+use crate::rect_utils::{magnify_rect, transform_to_rect};
 use crate::{debug_ui::*, species::*, food_source::*, food_desire::*, water_desire::*, water_source::*, reproduce::*};
 use std::f32::consts::PI;
+use crate::quadtree::*;
+use crate::health::*;
+use crate::entity_wrapper::*;
 
 use crate::physics::*;
 
 const MAX_ACCELERATION: f32 = 5.;
+const PERCEPTION_RADIUS: f32 = 200.;
 
 /*
 NOTES:
@@ -26,66 +31,104 @@ NOTES:
 */
 
 
-// how to implement quadtree?
-// for spec in query.iter_mut()
-//     for each entity in same quadtree cell as spec
-//     do stuff
-
-
-
-
-
 
 pub fn behaviors(
     mut food_source_query: Query<(Entity, &mut FoodSource)>,
     mut water_source_query: Query<(Entity, &mut WaterSource)>,
     mut species_set: ParamSet<(
+        Query<(Entity, &mut Species, &mut Physics, &mut Health, &mut Transform)>,
         Query<(Entity, &mut Transform, &mut Species, &mut FoodDesire, &mut WaterDesire, &mut Physics)>,
-        Query<(Entity, &mut Transform, &mut Species)>,
-        Query<(Entity, &mut Species, &mut Physics)>,
-        Query<(Entity, &mut Species, &mut Physics, &mut Reproduction)>
     )>,
     mut reproduce_event_writer: EventWriter<Reproduce>,
+    mut qt: ResMut<EntityQuadtree>,
     mut gizmos: Gizmos,
     mut commands: Commands,
     ui_state: ResMut<UiState>,
     time: Res<Time>,
 ) {
 
-    // species pair comparisons
-    let mut species_only = species_set.p2();
-    let mut combinations = species_only.iter_combinations_mut::<2>();
-    while let Some([mut this, other]) = combinations.fetch_next() {
-        let this_sp = this.1;
-        let mut this_phys = this.2;
+    // --------------------------------------------------
+    //               SPECIES PAIR COMPARISONS
+    // --------------------------------------------------
 
-        let other_sp = other.1;
-        let other_phys = other.2;
+    for (this_entity, mut sp, mut phys, mut health, tf) in species_set.p0().iter_mut() {
+        let this_rect = transform_to_rect(&tf);
+        let perception_rect = magnify_rect(&this_rect, Vec2::splat(PERCEPTION_RADIUS));
+        if ui_state.show_perception_radius {
+            gizmos.rect_2d(perception_rect.center(), 0.0, perception_rect.size(), Color::GREEN);
+        }
 
-        let mut avoid_force = Vec3::ZERO;
-        let other_to_this = this_phys.pos - other_phys.pos;
-        let distance = other_to_this.length();
+        if let Some(node) = qt.query_rect(&perception_rect) {
+            let mut nearby_count = 0;
+            let mut min_distance: f32 = 100000.;
+            let mut avoid_force = Vec3::ZERO;             
+            for near in node
+                .get_all_descendant_values()
+                .filter(|v| v.entity != this_entity)
+                {
+                    // do stuff based on nearby species
 
-        // other race
-        if this_sp.race != other_sp.race {
-            // avoid other races. Scale perception radius by species avoidance value
-            if distance > 0. && distance < 200. {//this.perception_radius + this.avoidance {
-                avoid_force += ui_state.avoid_other_strength * other_to_this.normalize_or_zero();
-                this_phys.steering += avoid_force;
-                if ui_state.show_physics_vectors {
-                    gizmos.ray(this_phys.pos, avoid_force * ui_state.vector_scaling, Color::YELLOW);
-                }
+                    // avoid other species.
+                    let other_to_this = phys.pos - near.pos;
+                    let distance = other_to_this.length();
+
+                    // if temp_distance < min_distance {
+                    avoid_force = other_to_this.normalize_or_zero()  * ui_state.avoid_other_strength;
+                    phys.steering +=  avoid_force * time.delta_seconds();           
+                        // min_distance = temp_distance;
+                    // }
+
+
+
+
+
+
+                    nearby_count += 1;
             }
-        // same race
-        } else {
+            if ui_state.show_physics_vectors {
+                gizmos.ray(phys.pos, avoid_force * ui_state.vector_scaling, Color::YELLOW);
+            } 
+            // info!("Nearby: {}", nearby_count);
 
-            // avoid species of the same race 
-            if distance > 0. && distance <  200. {//this.perception_radius {
-                avoid_force += ui_state.avoid_same_strength * other_to_this.normalize_or_zero();
-                this_phys.steering += avoid_force;
-            }
         }
     }
+
+
+    // // OLD ITER COMBINATIONS
+    // // species pair comparisons
+    // let mut species_only = species_set.p2();
+    // let mut combinations = species_only.iter_combinations_mut::<2>();
+    // while let Some([mut this, other]) = combinations.fetch_next() {
+    //     let this_sp = this.1;
+    //     let mut this_phys = this.2;
+
+    //     let other_sp = other.1;
+    //     let other_phys = other.2;
+ 
+    //     let mut avoid_force = Vec3::ZERO;
+    //     let other_to_this = this_phys.pos - other_phys.pos;
+    //     let distance = other_to_this.length();
+
+    //     // other race
+    //     if this_sp.race != other_sp.race {
+    //         // avoid other races. Scale perception radius by species avoidance value
+    //         if distance > 0. && distance < 200. {//this.perception_radius + this.avoidance {
+    //             avoid_force += ui_state.avoid_other_strength * other_to_this.normalize_or_zero();
+    //             this_phys.steering += avoid_force;
+    //             if ui_state.show_physics_vectors {
+    //                 gizmos.ray(this_phys.pos, avoid_force * ui_state.vector_scaling, Color::YELLOW);
+    //             }
+    //         }
+    //     // same race
+    //     } else {
+
+    //         // avoid species of the same race 
+    //         if distance > 0. && distance <  200. {//this.perception_radius {
+    //             avoid_force += ui_state.avoid_same_strength * other_to_this.normalize_or_zero();
+    //             this_phys.steering += avoid_force;
+    //         }
+    //     }
+    // }
 
 
     // steer towards food and water
@@ -96,8 +139,7 @@ pub fn behaviors(
         mut food_des, 
         mut water_des,
         mut phys,
-    ) in species_set.p0().iter_mut() {
-
+    ) in species_set.p1().iter_mut() {
         // steer towards food
         let mut min_distance: f32 = 1000000.0;
         let mut food_force = Vec3::ZERO;
@@ -132,7 +174,7 @@ pub fn behaviors(
             }
         }
         //sp.steering_forces += food_force;
-        phys.steering += food_force * time.delta_seconds();
+        // phys.steering += food_force * time.delta_seconds();
 
 
         // steer to water sources
@@ -170,12 +212,12 @@ pub fn behaviors(
                 }
             }
         }
-        phys.steering += water_force * time.delta_seconds();
+        // phys.steering += water_force * time.delta_seconds();
 
         // steer towards homebase. If other behaviors are close to 0, this one will dominate, even though it has no strength factor
         // TODO add strength factor? Maybe increase strength when the species health is low, or it has no food, water, etc.
         let steering_homebase = (sp.homebase - phys.pos).normalize_or_zero();
-        phys.steering += steering_homebase * time.delta_seconds();
+        // phys.steering += steering_homebase * time.delta_seconds();
 
 
 
